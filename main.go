@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/joho/godotenv"
+	_ "github.com/joho/godotenv"
 	"github.com/rakyll/openai-go"
 	"github.com/rakyll/openai-go/chat"
 	"github.com/rs/zerolog"
@@ -25,12 +25,6 @@ func main() {
 	// setup logger
 	log.Logger = log.With().Caller().Logger()
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
-
-	// Environment files
-	err := godotenv.Load()
-	if err != nil {
-		log.Debug().Msg(err.Error())
-	}
 
 	retainHistory = os.Getenv("RETAIN_HISTORY") == "true"
 

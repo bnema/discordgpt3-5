@@ -7,6 +7,9 @@ WORKDIR /app
 # Copy all the files from the current directory to the working directory
 COPY . ./
 
+RUN mkdir database
+
+RUN touch database/chats.db
 
 # Download the dependencies
 RUN go mod download
@@ -16,7 +19,7 @@ RUN apk add --no-cache git
 
 RUN apk add --no-cache gcc musl-dev
 
-# Build the Go app with CGO disabled and statically linked
+# Build the Go app with CGO enabled 
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o discordgpt-linux-amd64 .
 
 
