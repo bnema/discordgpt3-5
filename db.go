@@ -15,10 +15,11 @@ var (
 
 type Message struct {
 	gorm.Model
-	ID      uint   `gorm:"primaryKey" json:"id"`
-	ChatID  string `json:"chatId,omitempty"`  // telegrams conversation id
-	Role    string `json:"role,omitempty"`    // chatgpt role
-	Content string `json:"content,omitempty"` // message content
+	ID       uint   `gorm:"primaryKey" json:"id"`
+	ChatID   string `json:"chatId,omitempty"`   // Discord ChannelID
+	Role     string `json:"role,omitempty"`     // chatgpt rol
+	UserName string `json:"userName,omitempty"` // Discord UserName
+	Content  string `json:"content,omitempty"`  // message content
 
 	PromptTokens     int `json:"prompt_tokens,omitempty"`
 	CompletionTokens int `json:"completion_tokens,omitempty"`

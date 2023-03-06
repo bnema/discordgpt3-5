@@ -5,11 +5,10 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
-	"strconv"
+	"strings"
 	"time"
 
-	"github.com/go-telegram/bot"
-	"github.com/go-telegram/bot/models"
+	"github.com/bwmarrin/discordgo"
 	"github.com/joho/godotenv"
 	"github.com/rakyll/openai-go"
 	"github.com/rakyll/openai-go/chat"
@@ -43,26 +42,29 @@ func main() {
 	StartServer()
 }
 
-// StartServer starts the telegram server
+// StartServer starts the Discord server
 func StartServer() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	opts := []bot.Option{
-		bot.WithDefaultHandler(handler),
-	}
-
-	b, err := bot.New(os.Getenv("TELEGRAM_API_KEY"), opts...)
+	dg, err := discordgo.New("Bot " + os.Getenv("DISCORD_BOT_TOKEN"))
 	if err != nil {
-		panic(err)
+		log.Fatal().Msgf("Error creating Discord session: %v", err)
 	}
 
-	log.Debug().Msg("Telegram bot started!")
-	b.Start(ctx)
+	dg.AddHandler(handler)
+
+	err = dg.Open()
+	if err != nil {
+		log.Fatal().Msgf("Error opening Discord session: %v", err)
+	}
+
+	log.Debug().Msg("Discord bot started!")
+	<-ctx.Done()
 }
 
 // SendToChatGPT send a message to chatgpt
-func SendToChatGPT(chatId, textMsg string) []*chat.Choice {
+func SendToChatGPT(chatId, userName string, textMsg string) []*chat.Choice {
 	var (
 		ctx = context.Background()
 		s   = openai.NewSession(os.Getenv("OPENAI_TOKEN"))
@@ -112,6 +114,11 @@ func SendToChatGPT(chatId, textMsg string) []*chat.Choice {
 	// add this current message
 	gptMsgs = append(gptMsgs, &chat.Message{
 		Role:    "user",
+		Content: userName,
+	})
+
+	gptMsgs = append(gptMsgs, &chat.Message{
+		Role:    "user",
 		Content: textMsg,
 	})
 
@@ -129,9 +136,10 @@ func SendToChatGPT(chatId, textMsg string) []*chat.Choice {
 	if len(prevMessages) == 0 {
 		for _, gptMsg := range gptMsgs {
 			_, err := CreateMessage(Message{
-				ChatID:  chatId,
-				Content: gptMsg.Content,
-				Role:    gptMsg.Role,
+				ChatID:   chatId,
+				UserName: userName,
+				Content:  gptMsg.Content,
+				Role:     gptMsg.Role,
 
 				// metrics for this single chat session
 				PromptTokens:     resp.Usage.PromptTokens,
@@ -145,9 +153,10 @@ func SendToChatGPT(chatId, textMsg string) []*chat.Choice {
 	} else {
 		// save the current content
 		_, err := CreateMessage(Message{
-			ChatID:  chatId,
-			Role:    "user",
-			Content: textMsg,
+			ChatID:   chatId,
+			UserName: userName,
+			Role:     "user",
+			Content:  textMsg,
 
 			// metrics for this single chat session
 			PromptTokens:     resp.Usage.PromptTokens,
@@ -185,18 +194,31 @@ func SendToChatGPT(chatId, textMsg string) []*chat.Choice {
 	return resp.Choices
 }
 
-// handler
-func handler(ctx context.Context, b *bot.Bot, update *models.Update) {
+// handler handles the discord messages
+func handler(s *discordgo.Session, m *discordgo.MessageCreate) {
 	// Initialize random seed
 	rand.Seed(time.Now().UnixNano())
+	// Ignore all messages created by the bot itself
+	if m.Author.ID == s.State.User.ID {
+		return
+	}
+	// If someone is citing someone else, ignore it
+	if strings.Contains(m.Content, "@") {
+		return
+	}
 
-	outgoingMsg := update.Message.Text
-	chatId := update.Message.Chat.ID
+	// if channelID is not "DISCORD_CHANNEL_ID"then ignore it
+	if m.ChannelID != os.Getenv("DISCORD_CHANNEL_ID") {
+		return
+	}
+
+	// Outgoing message to chatgpt
+	outgoingMsg := m.Content
+	chatId := m.ChannelID
+	userName := m.Author.Username
 	log.Debug().Msg(outgoingMsg)
 
-	// convert number to string
-	chatIdStr := strconv.Itoa(int(chatId))
-	chatResp := SendToChatGPT(chatIdStr, outgoingMsg)
+	chatResp := SendToChatGPT(chatId, userName, outgoingMsg)
 	if chatResp == nil {
 
 		// Define an array of responses
@@ -210,10 +232,8 @@ func handler(ctx context.Context, b *bot.Bot, update *models.Update) {
 		}
 		randIndex := rand.Intn(len(responses))
 
-		b.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID: chatId,
-			Text:   responses[randIndex],
-		})
+		// Send a message to the channel
+		s.ChannelMessageSend(m.ChannelID, responses[randIndex])
 		return
 	}
 
@@ -221,9 +241,8 @@ func handler(ctx context.Context, b *bot.Bot, update *models.Update) {
 		incomingMsg := choice.Message
 		log.Printf("role=%q, content=%q", incomingMsg.Role, incomingMsg.Content)
 
-		b.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID: chatId,
-			Text:   incomingMsg.Content,
-		})
+		// Send a message to the channel
+		s.ChannelMessageSend(m.ChannelID, incomingMsg.Content)
+
 	}
 }
