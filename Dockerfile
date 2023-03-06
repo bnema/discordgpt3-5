@@ -11,6 +11,9 @@ COPY . ./
 # Download the dependencies
 RUN go mod download
 
+# Install Git
+RUN apk add --no-cache git
+
 # Build the Go app with CGO disabled and statically linked
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o discordgpt-linux-amd64 .
 
