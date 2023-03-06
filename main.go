@@ -69,7 +69,7 @@ func SendToChatGPT(chatId, userName string, textMsg string) []*chat.Choice {
 		ctx = context.Background()
 		s   = openai.NewSession(os.Getenv("OPENAI_TOKEN"))
 
-		// messages that will be sent to chatgpt
+		// messages that will be sent to chatgpt (add userName before the textMsg)
 		gptMsgs = make([]*chat.Message, 0)
 	)
 
@@ -110,16 +110,10 @@ func SendToChatGPT(chatId, userName string, textMsg string) []*chat.Choice {
 			})
 		}
 	}
-
-	// add this current message
+	// add the current text message
 	gptMsgs = append(gptMsgs, &chat.Message{
 		Role:    "user",
-		Content: userName,
-	})
-
-	gptMsgs = append(gptMsgs, &chat.Message{
-		Role:    "user",
-		Content: textMsg,
+		Content: userName + ": " + textMsg,
 	})
 
 	// process request
@@ -171,9 +165,10 @@ func SendToChatGPT(chatId, userName string, textMsg string) []*chat.Choice {
 	// save these reply responses
 	for _, choice := range resp.Choices {
 		_, err := CreateMessage(Message{
-			ChatID:  chatId,
-			Role:    choice.Message.Role,
-			Content: choice.Message.Content,
+			ChatID:   chatId,
+			UserName: userName,
+			Role:     choice.Message.Role,
+			Content:  choice.Message.Content,
 
 			// metrics for this single chat session
 			PromptTokens:     resp.Usage.PromptTokens,
