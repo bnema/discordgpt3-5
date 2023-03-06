@@ -1,4 +1,4 @@
-module github.com/navicstein/telechatgpt
+module github.com/bnema/discordgpt3-5
 
 go 1.18
 
