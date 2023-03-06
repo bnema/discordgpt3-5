@@ -14,15 +14,11 @@ RUN go mod download
 # Install Git
 RUN apk add --no-cache git
 
-# Build the Go app with CGO disabled and statically linked
-RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o discordgpt-linux-amd64 .
-
-
 # Define some ENV Vars
 ENV DIRECTORY=/app \
   IS_DOCKER=true
 
-CMD ["./discordgpt-linux-amd64"]
+CMD ["go run main.go"]
 
 # Expose the port 443
 EXPOSE 443
