@@ -82,6 +82,13 @@ func SendToChatGPT(chatId, userName string, textMsg string) []*chat.Choice {
 	// get the systems prompt
 	prmptB, _ := os.ReadFile(promptName)
 
+	// limit the number of previous messages to avoid exceeding the token quota
+	maxMessages := 20 // set a maximum number of messages to keep
+	if len(prevMessages) > maxMessages {
+		// remove the oldest messages
+		prevMessages = prevMessages[len(prevMessages)-maxMessages:]
+	}
+
 	// add system prompt if user is initially starting out the conversation
 	if len(prevMessages) == 0 {
 		// create & add the systems prompt first
