@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	_ "github.com/joho/godotenv"
+	_ "github.com/joho/godotenv/autoload"
 	"github.com/rakyll/openai-go"
 	"github.com/rakyll/openai-go/chat"
 	"github.com/rs/zerolog"
@@ -40,7 +40,6 @@ func main() {
 func StartServer() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
-
 	dg, err := discordgo.New("Bot " + os.Getenv("DISCORD_BOT_TOKEN"))
 	if err != nil {
 		log.Fatal().Msgf("Error creating Discord session: %v", err)
