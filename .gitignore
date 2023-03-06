@@ -5,3 +5,4 @@ contacts
 .env
 prompt.txt
 chats.db
+.vscode/
