@@ -21,3 +21,4 @@ RUN go build
 
 CMD ["./discordgpt3-5"]
 
+EXPOSE 8080:80
