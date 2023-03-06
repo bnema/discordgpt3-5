@@ -17,8 +17,8 @@ RUN apk add --no-cache git
 # Define some ENV Vars
 ENV DIRECTORY=/app \
   IS_DOCKER=true
-
-CMD ["go run main.go"]
+  
+CMD ["go", "run", "main.go"]
 
 # Expose the port 443
 EXPOSE 443
