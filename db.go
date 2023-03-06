@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	dbFile = "chats.db"
+	dbFile = "database/chats.db"
 	DB     *gorm.DB
 )
 
