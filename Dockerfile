@@ -19,7 +19,8 @@ RUN apk add --no-cache gcc musl-dev
 
 RUN go build
 
-CMD ["./discordgpt3-5"]
-
 # Expose port 80 and 443
 EXPOSE 80 443
+
+CMD ["./discordgpt3-5"]
+
