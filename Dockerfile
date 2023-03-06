@@ -21,4 +21,5 @@ RUN go build
 
 CMD ["./discordgpt3-5"]
 
-EXPOSE 8080:80
+# Expose port 80 and 443
+EXPOSE 80 443
