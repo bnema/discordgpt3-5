@@ -290,7 +290,7 @@ func handler(s *discordgo.Session, m *discordgo.MessageCreate) {
 		incomingMsg := choice.Message
 		log.Printf("role=%q, content=%q", incomingMsg.Role, incomingMsg.Content)
 
-		// Regex to remove the username: the beginning of the message (also catch if user has a space in their name)
+		// Regex to remove the username: at the beginning of the message (also catch if user has a space in their name)
 		re := regexp.MustCompile(`^.*?: `)
 		incomingMsg.Content = re.ReplaceAllString(incomingMsg.Content, "")
 		// Send a message to the channel
