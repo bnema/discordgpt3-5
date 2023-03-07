@@ -29,7 +29,7 @@ RETAIN_HISTORY= # boolean, whether to retain history or not
 
 ## Todo
 
--   [ ] isTyping indicator when waiting for openai's response
+-   [x] isTyping indicator when waiting for openai's response
 -   [ ] Add a wait delay to prevent spamming the bot (also concat if the user sends multiple messages in a row)
 -   [ ] Listen in every channels but add some randomness to decide if the bot should respond or not
 -   [ ] Add role check for the commands
