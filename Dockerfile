@@ -10,6 +10,9 @@ COPY . .
 # Create the database directory
 RUN mkdir -p /app/database
 
+# Add git
+
+
 # Install the dependencies
 RUN go get -d -v ./...
 RUN go install -v ./...

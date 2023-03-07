@@ -18,7 +18,6 @@ import (
 
 var (
 	retainHistory bool
-	promptName    = "prompt.txt"
 )
 
 func main() {
@@ -57,7 +56,7 @@ func StartServer() {
 }
 
 // SendToChatGPT send a message to chatgpt
-func SendToChatGPT(chatId, userName string, textMsg string) []*chat.Choice {
+func SendToChatGPT(chatId, userName string, textMsg string) ([]*chat.Choice, error) {
 	var (
 		ctx = context.Background()
 		s   = openai.NewSession(os.Getenv("OPENAI_TOKEN"))
@@ -72,28 +71,26 @@ func SendToChatGPT(chatId, userName string, textMsg string) []*chat.Choice {
 		log.Err(err)
 	}
 
-	// get the systems prompt
-	prmptB, _ := os.ReadFile(promptName)
-
-	// limit the number of previous messages to avoid exceeding the token quota
-	maxMessages := 20 // set a maximum number of messages to keep
-	if len(prevMessages) > maxMessages {
-		// remove the oldest messages
-		prevMessages = prevMessages[len(prevMessages)-maxMessages:]
-	}
+	// get the systems prompt model from the database
+	prmptB, _ := GetSystemPrompt()
 
 	// add system prompt if user is initially starting out the conversation
 	if len(prevMessages) == 0 {
-		// create & add the systems prompt first
-		log.Debug().Msg("added system prompt because its a first time user")
+		// Say in discord "You need to setup a system prompt first"
+		// add the system prompt to gpt
 		gptMsgs = append(gptMsgs, &chat.Message{
-			Role:    "user", // "system"
+			Role:    "system",
 			Content: string(prmptB),
 		})
 
 	} else {
 		// if we're retaining history
 		if retainHistory {
+			var historyMessagesLimit = 10
+			// add the last 10 previous messages
+			if len(prevMessages) > historyMessagesLimit {
+				prevMessages = prevMessages[len(prevMessages)-historyMessagesLimit:]
+			}
 			// add the whole previous users conversation + current text message and send to chatgpt
 			// this may include the previous prompt from the conversation
 			for _, prevMsg := range prevMessages {
@@ -102,6 +99,11 @@ func SendToChatGPT(chatId, userName string, textMsg string) []*chat.Choice {
 					Content: prevMsg.Content,
 				})
 			}
+			// add the system prompt to gpt
+			gptMsgs = append(gptMsgs, &chat.Message{
+				Role:    "system",
+				Content: string(prmptB),
+			})
 		} else {
 			// add only the system prompt to gpt
 			gptMsgs = append(gptMsgs, &chat.Message{
@@ -123,7 +125,7 @@ func SendToChatGPT(chatId, userName string, textMsg string) []*chat.Choice {
 	})
 	if err != nil {
 		log.Error().Msgf("Failed to complete: %v", err)
-		return nil
+		return nil, err
 	}
 
 	// save the new prompt + current text to DB
@@ -186,7 +188,18 @@ func SendToChatGPT(chatId, userName string, textMsg string) []*chat.Choice {
 		Int("PromptTokens", resp.Usage.PromptTokens).
 		Msg("usage")
 
-	return resp.Choices
+	return resp.Choices, nil
+}
+
+func CreateNewSystemPrompt(prompt string) error {
+	// create a new system prompt
+	_, err := CreateSystemPrompt(SystemPrompt{
+		Prompt: prompt,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // handler handles the discord messages
@@ -201,6 +214,39 @@ func handler(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if strings.Contains(m.Content, "@") {
 		return
 	}
+	// If someone say "pd we return
+	if strings.Contains(m.Content, "pd") {
+		return
+	}
+	// If message contains only an emoji or a simple word, ignore it
+	if len(m.Content) < 3 {
+		return
+	}
+
+	// if command is "!systemprompt" then create a new system prompt with the next message
+	if strings.Contains(m.Content, "!systemprompt") {
+		// Add the rest of the message as the system prompt
+		systemPrompt := strings.Replace(m.Content, "!systemprompt", "", 1)
+		err := CreateNewSystemPrompt(systemPrompt)
+		if err != nil {
+			log.Error().Msgf("unable to create new system prompt: %v", err)
+		} else {
+			// send a message to the channel + send the new system prompt to the chatgpt
+			_, err := s.ChannelMessageSend(m.ChannelID, "New system prompt created: "+systemPrompt)
+			if err != nil {
+				log.Error().Msgf("unable to send message to discord: %v", err)
+			} else {
+				// send the new system prompt to the chatgpt
+				_, err := SendToChatGPT(m.ChannelID, "system", systemPrompt)
+				if err != nil {
+					log.Error().Msgf("unable to send message to chatgpt: %v", err)
+				}
+
+			}
+
+		}
+		return
+	}
 
 	// if channelID is not "DISCORD_CHANNEL_ID"then ignore it
 	if m.ChannelID != os.Getenv("DISCORD_CHANNEL_ID") {
@@ -213,8 +259,11 @@ func handler(s *discordgo.Session, m *discordgo.MessageCreate) {
 	userName := m.Author.Username
 	log.Debug().Msg(outgoingMsg)
 
-	chatResp := SendToChatGPT(chatId, userName, outgoingMsg)
-	if chatResp == nil {
+	chatResp, err := SendToChatGPT(chatId, userName, outgoingMsg)
+	if err != nil {
+		log.Error().Msgf("unable to send message to chatgpt: %v", err)
+		return
+	} else {
 
 		// Define an array of responses
 		responses := []string{

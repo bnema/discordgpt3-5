@@ -26,6 +26,11 @@ type Message struct {
 	TotalTokens      int `json:"total_tokens,omitempty"`
 }
 
+type SystemPrompt struct {
+	gorm.Model
+	Prompt string `json:"prompt,omitempty"`
+}
+
 // ConnectDB
 func ConnectDB() error {
 	db, err := gorm.Open(sqlite.Open(dbFile), &gorm.Config{
@@ -35,7 +40,7 @@ func ConnectDB() error {
 		panic("failed to connect database")
 	}
 
-	db.AutoMigrate(&Message{})
+	db.AutoMigrate(&Message{}, &SystemPrompt{})
 
 	DB = db
 	log.Debug().Msg("database migrated")
@@ -62,4 +67,42 @@ func CreateMessage(msg Message) (*Message, error) {
 		return nil, err
 	}
 	return &msg, nil
+}
+
+// DeleteMessage deletes a chat by id
+func DeleteMessage(id uint) error {
+	if err := DB.Where("id = ?", id).Delete(&Message{}).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func GetSystemPrompt() (string, error) {
+	var systemPrompt SystemPrompt
+	err := DB.First(&systemPrompt).Error
+	if err != nil {
+		return "", err
+	}
+	return systemPrompt.Prompt, nil
+}
+
+func CreateSystemPrompt(systemPrompt SystemPrompt) (*SystemPrompt, error) {
+	// Check if there is already a system prompt
+	var systemPromptExists SystemPrompt
+	err := DB.First(&systemPromptExists).Error
+	if err == nil {
+		// update the system prompt
+		if err := DB.Model(&systemPromptExists).Updates(&systemPrompt).Error; err != nil {
+			return nil, err
+		}
+		return &systemPromptExists, nil
+	} else if err != nil && err.Error() != "record not found" {
+		return nil, err
+	}
+
+	// create a new system prompt
+	if err := DB.Create(&systemPrompt).Error; err != nil {
+		return nil, err
+	}
+	return &systemPrompt, nil
 }
