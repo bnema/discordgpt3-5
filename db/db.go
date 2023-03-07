@@ -1,4 +1,4 @@
-package main
+package db
 
 import (
 	"github.com/rs/zerolog/log"
@@ -108,10 +108,11 @@ func CreateSystemPrompt(systemPrompt SystemPrompt) (*SystemPrompt, error) {
 }
 
 func ResetDatabase() error {
-	if err := DB.Delete(&Message{}).Error; err != nil {
+	// Truncate the database tables
+	if err := DB.Migrator().DropTable(&Message{}, &SystemPrompt{}); err != nil {
 		return err
 	}
-	if err := DB.Delete(&SystemPrompt{}).Error; err != nil {
+	if err := DB.AutoMigrate(&Message{}, &SystemPrompt{}); err != nil {
 		return err
 	}
 	return nil
