@@ -128,7 +128,7 @@ func SendToChatGPT(chatId, userName string, textMsg string) []*chat.Choice {
 	for _, choice := range resp.Choices {
 		_, err := db.CreateMessage(db.Message{
 			ChatID:   chatId,
-			UserName: userName,
+			UserName: "ChatGPT",
 			Role:     choice.Message.Role,
 			Content:  choice.Message.Content,
 
@@ -151,6 +151,7 @@ func SendToChatGPT(chatId, userName string, textMsg string) []*chat.Choice {
 	return resp.Choices
 }
 
+// CreateNewSystemPrompt creates a new system prompt for chatgpt
 func CreateNewSystemPrompt(prompt string) error {
 	// create a new system prompt
 	_, err := db.CreateSystemPrompt(db.SystemPrompt{
