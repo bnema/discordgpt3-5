@@ -13,23 +13,26 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// systemPrompt is the current system prompt
+// simulateTyping simulates bot typing while the bot is generating a response
 func simulateTyping(s *discordgo.Session, channelID string) {
-	typingInterval := time.Duration(rand.Intn(3)+1) * time.Second // set a random typing interval between 1-3 seconds
-	pauseInterval := time.Duration(rand.Intn(3)+1) * time.Second  // set a random pause interval between 1-3 seconds
-	maxDuration := time.Duration(rand.Intn(5)+1) * time.Second    // set a random maximum duration between 1-5 seconds
-
+	typingInterval := time.Duration(rand.Intn(2)+1) * time.Second // set a random typing interval between 1-3 seconds
+	pauseInterval := time.Duration(rand.Intn(2)+1) * time.Second  // set a random pause interval between 1-3 seconds
+	maxDuration := time.Duration(rand.Intn(20)+5) * time.Second   // set a random max duration between 5-25 seconds
+	loopQuantity := rand.Intn(10) + 1                             // set a random loop quantity between 1-10
 	// Start with typing
 	s.ChannelTyping(channelID)
+	// Pause for a random amount of time
 	time.Sleep(typingInterval)
-
-	// Alternate between typing and pausing until maxDuration is reached
-	startTime := time.Now()
-	for time.Since(startTime) < maxDuration {
-		s.ChannelTyping(channelID)
-		time.Sleep(typingInterval)
-		s.ChannelTyping(channelID)
+	// Loop a random amount of times
+	for i := 0; i < loopQuantity; i++ {
+		// Pause for a random amount of time
 		time.Sleep(pauseInterval)
+		// Check if max duration has been reached
+		if pauseInterval > maxDuration {
+			break
+		}
+		// Start with typing
+		s.ChannelTyping(channelID)
 	}
 }
 
