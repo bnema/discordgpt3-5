@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
+	"regexp"
 	"strings"
 	"time"
 
@@ -210,14 +211,6 @@ func handler(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == s.State.User.ID {
 		return
 	}
-	// If someone is citing someone else, ignore it
-	if strings.Contains(m.Content, "@") {
-		return
-	}
-	// If someone say "pd we return
-	if strings.Contains(m.Content, "pd") {
-		return
-	}
 	// If message contains only an emoji or a simple word, ignore it BUT not if "JP", "jp", "Jp", "jP",
 	if !strings.Contains(m.Content, "JP") && !strings.Contains(m.Content, "jp") && !strings.Contains(m.Content, "Jp") && !strings.Contains(m.Content, "jP") && len(m.Content) < 3 {
 		return
@@ -245,6 +238,27 @@ func handler(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	// if channelID is not "DISCORD_CHANNEL_ID"then ignore it
 	if m.ChannelID != os.Getenv("DISCORD_CHANNEL_ID") {
+		return
+	}
+
+	// resetdb command to reset the database
+	if m.Content == "!resetdb" {
+		// reset the database
+		err := ResetDatabase()
+		if err != nil {
+			log.Error().Msgf("unable to reset the database: %v", err)
+		} else {
+			// send a message to the channel
+			_, err := s.ChannelMessageSend(m.ChannelID, "Database reset")
+			if err != nil {
+				log.Error().Msgf("unable to send message to discord: %v", err)
+			}
+			// Set an empty system prompt
+			err = CreateNewSystemPrompt("")
+			if err != nil {
+				log.Error().Msgf("unable to create new system prompt: %v", err)
+			}
+		}
 		return
 	}
 
@@ -276,8 +290,10 @@ func handler(s *discordgo.Session, m *discordgo.MessageCreate) {
 		incomingMsg := choice.Message
 		log.Printf("role=%q, content=%q", incomingMsg.Role, incomingMsg.Content)
 
+		// Regex to remove the username: the beginning of the message (also catch if user has a space in their name)
+		re := regexp.MustCompile(`^.*?: `)
+		incomingMsg.Content = re.ReplaceAllString(incomingMsg.Content, "")
 		// Send a message to the channel
 		s.ChannelMessageSend(m.ChannelID, incomingMsg.Content)
-
 	}
 }

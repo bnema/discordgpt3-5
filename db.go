@@ -106,3 +106,13 @@ func CreateSystemPrompt(systemPrompt SystemPrompt) (*SystemPrompt, error) {
 	}
 	return &systemPrompt, nil
 }
+
+func ResetDatabase() error {
+	if err := DB.Delete(&Message{}).Error; err != nil {
+		return err
+	}
+	if err := DB.Delete(&SystemPrompt{}).Error; err != nil {
+		return err
+	}
+	return nil
+}
