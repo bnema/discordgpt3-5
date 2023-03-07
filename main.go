@@ -56,7 +56,7 @@ func StartServer() {
 }
 
 // SendToChatGPT send a message to chatgpt
-func SendToChatGPT(chatId, userName string, textMsg string) ([]*chat.Choice, error) {
+func SendToChatGPT(chatId, userName string, textMsg string) []*chat.Choice {
 	var (
 		ctx = context.Background()
 		s   = openai.NewSession(os.Getenv("OPENAI_TOKEN"))
@@ -125,7 +125,7 @@ func SendToChatGPT(chatId, userName string, textMsg string) ([]*chat.Choice, err
 	})
 	if err != nil {
 		log.Error().Msgf("Failed to complete: %v", err)
-		return nil, err
+		return nil
 	}
 
 	// save the new prompt + current text to DB
@@ -188,7 +188,7 @@ func SendToChatGPT(chatId, userName string, textMsg string) ([]*chat.Choice, err
 		Int("PromptTokens", resp.Usage.PromptTokens).
 		Msg("usage")
 
-	return resp.Choices, nil
+	return resp.Choices
 }
 
 func CreateNewSystemPrompt(prompt string) error {
@@ -218,8 +218,8 @@ func handler(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if strings.Contains(m.Content, "pd") {
 		return
 	}
-	// If message contains only an emoji or a simple word, ignore it
-	if len(m.Content) < 3 {
+	// If message contains only an emoji or a simple word, ignore it BUT not if "JP", "jp", "Jp", "jP",
+	if !strings.Contains(m.Content, "JP") && !strings.Contains(m.Content, "jp") && !strings.Contains(m.Content, "Jp") && !strings.Contains(m.Content, "jP") && len(m.Content) < 3 {
 		return
 	}
 
@@ -232,18 +232,13 @@ func handler(s *discordgo.Session, m *discordgo.MessageCreate) {
 			log.Error().Msgf("unable to create new system prompt: %v", err)
 		} else {
 			// send a message to the channel + send the new system prompt to the chatgpt
-			_, err := s.ChannelMessageSend(m.ChannelID, "New system prompt created: "+systemPrompt)
+			_, err := s.ChannelMessageSend(m.ChannelID, "New system prompt created")
+			// send the new system prompt to the chatgpt
+			SendToChatGPT(m.ChannelID, "system", systemPrompt)
+
 			if err != nil {
 				log.Error().Msgf("unable to send message to discord: %v", err)
-			} else {
-				// send the new system prompt to the chatgpt
-				_, err := SendToChatGPT(m.ChannelID, "system", systemPrompt)
-				if err != nil {
-					log.Error().Msgf("unable to send message to chatgpt: %v", err)
-				}
-
 			}
-
 		}
 		return
 	}
@@ -259,12 +254,8 @@ func handler(s *discordgo.Session, m *discordgo.MessageCreate) {
 	userName := m.Author.Username
 	log.Debug().Msg(outgoingMsg)
 
-	chatResp, err := SendToChatGPT(chatId, userName, outgoingMsg)
-	if err != nil {
-		log.Error().Msgf("unable to send message to chatgpt: %v", err)
-		return
-	} else {
-
+	chatResp := SendToChatGPT(chatId, userName, outgoingMsg)
+	if chatResp == nil {
 		// Define an array of responses
 		responses := []string{
 			"Sorry, there seems to be a temporary issue. I'll keep trying and let you know as soon as it's back online.",

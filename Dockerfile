@@ -1,24 +1,32 @@
 # Go building fie
-FROM golang:1.20.1-bullseye
+FROM golang:1.18.0-alpine3.14
 
 # Create a working directory
 WORKDIR /app
 
-# Copy the application source code to the container
-COPY . .
+# Copy all the files from the current directory to the working directory
+COPY . ./
 
-# Create the database directory
 RUN mkdir -p /app/database
 
-# Add git
+# Download the dependencies
+RUN go mod download
+
+# Install Git
+RUN apk add --no-cache git
+
+RUN apk add --no-cache gcc musl-dev
+
+# Build the Go app with CGO enabled 
+RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o discordgpt-linux-amd64 .
 
 
-# Install the dependencies
-RUN go get -d -v ./...
-RUN go install -v ./...
+# Define some ENV Vars
+ENV DIRECTORY=/app \
+  IS_DOCKER=true
 
-# Expose port 80 and 443
+# Expose the port 80 and 443
 EXPOSE 80 443
 
-# Start the application
-CMD ["go", "run", "main.go"]
+CMD ["./discordgpt-linux-amd64"]
+
