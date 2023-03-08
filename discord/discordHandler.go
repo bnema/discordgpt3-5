@@ -1,7 +1,6 @@
 package discord
 
 import (
-	"fmt"
 	"math/rand"
 	"os"
 	"regexp"
@@ -21,6 +20,7 @@ type messageInfo struct {
 	typingTime time.Duration
 }
 
+// Define a struct to hold the queue
 type FIFO struct {
 	queue []string
 }
@@ -65,9 +65,20 @@ func simulateTyping(channel chan messageInfo) {
 		for i := 0; i < rand.Intn(10)+1; i++ {
 			// Pause for a random amount of time
 			time.Sleep(time.Duration(rand.Intn(2)+1) * time.Second)
-			// Check if max duration has been reached
-			if typingInterval > (time.Duration(rand.Intn(20)+5) * time.Second) {
-				break
+			// Check if the message is still in the queue
+			if !fifoQueue.IsEmpty() {
+				// Get the first element from the queue
+				firstElement := fifoQueue.Dequeue()
+				// Check if the first element is the same as the current message
+				if firstElement == m.Content {
+					// Stop typing
+					s.ChannelTyping(m.ChannelID)
+					// Break the loop
+					break
+				} else {
+					// Add the first element back to the queue
+					fifoQueue.Enqueue(firstElement)
+				}
 			}
 			// Start with typing
 			s.ChannelTyping(m.ChannelID)
@@ -152,10 +163,10 @@ func handler(s *discordgo.Session, m *discordgo.MessageCreate) {
 		typingTime: typingInterval,
 	}
 
-	// Send the message to chatgpt with the queue number
+	// Send the message to openai API
 	chatResp := openai.SendToChatGPT(chatId, userName, outgoingMsg)
 
-	// Get the response from chatgpt with the queue number
+	// Get the response from the API
 	for _, choice := range chatResp {
 		incomingMsg := choice.Message
 		log.Printf("role=%q, content=%q", incomingMsg.Role, incomingMsg.Content)
@@ -163,12 +174,10 @@ func handler(s *discordgo.Session, m *discordgo.MessageCreate) {
 		// Regex to remove the username: at the beginning of the message (also catch if user has a space in their name)
 		re := regexp.MustCompile(`^.*?: `)
 		incomingMsg.Content = re.ReplaceAllString(incomingMsg.Content, "")
-
-		// Add to FIFO queue
+		// Add to FIFO queue if the message is not empty
 		fifoQueue.Enqueue(incomingMsg.Content)
-		fmt.Println(fifoQueue)
 
-		// Traitement des éléments dans l'ordre d'arrivée
+		// If the queue is not empty, send the first message of the queue
 		for !fifoQueue.IsEmpty() {
 			// Get the first element of the queue
 			firsMsg := fifoQueue.Dequeue()
@@ -191,6 +200,7 @@ func handler(s *discordgo.Session, m *discordgo.MessageCreate) {
 			} else if err != nil {
 				log.Error().Msgf("unable to send message to discord: %v", err)
 			}
+
 		}
 	}
 }
