@@ -13,26 +13,36 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// Define a struct to hold the message information
+type messageInfo struct {
+	session    *discordgo.Session
+	message    *discordgo.MessageCreate
+	typingTime time.Duration
+}
+
 // simulateTyping simulates bot typing while the bot is generating a response
-func simulateTyping(s *discordgo.Session, channelID string) {
-	typingInterval := time.Duration(rand.Intn(2)+1) * time.Second // set a random typing interval between 1-3 seconds
-	pauseInterval := time.Duration(rand.Intn(2)+1) * time.Second  // set a random pause interval between 1-3 seconds
-	maxDuration := time.Duration(rand.Intn(20)+5) * time.Second   // set a random max duration between 5-25 seconds
-	loopQuantity := rand.Intn(10) + 1                             // set a random loop quantity between 1-10
-	// Start with typing
-	s.ChannelTyping(channelID)
-	// Pause for a random amount of time
-	time.Sleep(typingInterval)
-	// Loop a random amount of times
-	for i := 0; i < loopQuantity; i++ {
-		// Pause for a random amount of time
-		time.Sleep(pauseInterval)
-		// Check if max duration has been reached
-		if pauseInterval > maxDuration {
-			break
-		}
+func simulateTyping(channel chan messageInfo) {
+	for {
+		msgInfo := <-channel
+		s := msgInfo.session
+		m := msgInfo.message
+		typingInterval := msgInfo.typingTime
+
 		// Start with typing
-		s.ChannelTyping(channelID)
+		s.ChannelTyping(m.ChannelID)
+		// Pause for a random amount of time
+		time.Sleep(typingInterval)
+		// Loop a random amount of times
+		for i := 0; i < rand.Intn(10)+1; i++ {
+			// Pause for a random amount of time
+			time.Sleep(time.Duration(rand.Intn(2)+1) * time.Second)
+			// Check if max duration has been reached
+			if typingInterval > (time.Duration(rand.Intn(20)+5) * time.Second) {
+				break
+			}
+			// Start with typing
+			s.ChannelTyping(m.ChannelID)
+		}
 	}
 }
 
@@ -102,22 +112,25 @@ func handler(s *discordgo.Session, m *discordgo.MessageCreate) {
 	log.Debug().Msg(outgoingMsg)
 
 	// Use is typing while the bot is thinking
-	simulateTyping(s, m.ChannelID)
+	typingInterval := time.Duration(rand.Intn(5)+5) * time.Second
+	// Create a channel to send the message information
+	channel := make(chan messageInfo)
+	// Start the simulateTyping function
+	go simulateTyping(channel)
+	// Send the message information to the channel
+	channel <- messageInfo{
+		session:    s,
+		message:    m,
+		typingTime: typingInterval,
+	}
+
 	chatResp := openai.SendToChatGPT(chatId, userName, outgoingMsg)
 	if chatResp == nil {
-		// Define an array of responses
-		responses := []string{
-			"Sorry, there seems to be a temporary issue. I'll keep trying and let you know as soon as it's back online.",
-			"Hmmm, something's not quite right. I'm on the case and will update you when it's working again.",
-			"Looks like I'm having a bit of a moment. I'm keeping an eye on it and will let you know when it's back up.",
-			"Whoops, I seem to be down at the moment. I'll do my best to reconnect and keep you posted.",
-			"That's bad, I can't seem to reach the destination endpoint. But I'll get back to you when I'm online.",
-			"Oh no, I'm down. I'll keep trying and notify you when I'm back online.",
-		}
-		randIndex := rand.Intn(len(responses))
+		// If chatResp is nil, we send to the channel the error message
+		error := "Error: unable to receive a response from openai"
 
 		// Send a message to the channel
-		s.ChannelMessageSend(m.ChannelID, responses[randIndex])
+		s.ChannelMessageSend(m.ChannelID, error)
 		return
 	}
 
