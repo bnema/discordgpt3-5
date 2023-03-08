@@ -1,6 +1,7 @@
 package discord
 
 import (
+	"fmt"
 	"math/rand"
 	"os"
 	"regexp"
@@ -20,9 +21,37 @@ type messageInfo struct {
 	typingTime time.Duration
 }
 
+type FIFO struct {
+	queue []string
+}
+
+// Create a new FIFO queue
+var fifoQueue = FIFO{}
+
+// Add a new element to the queue
+func (f *FIFO) Enqueue(element string) {
+	f.queue = append(f.queue, element)
+}
+
+// Remove the first element from the queue
+func (f *FIFO) Dequeue() string {
+	if len(f.queue) == 0 {
+		return ""
+	}
+	element := f.queue[0]
+	f.queue = f.queue[1:len(f.queue)]
+	return element
+}
+
+// Return the first element from the queue
+func (f *FIFO) IsEmpty() bool {
+	return len(f.queue) == 0
+}
+
 // simulateTyping simulates bot typing while the bot is generating a response
 func simulateTyping(channel chan messageInfo) {
 	for {
+		// Wait for a message to be received
 		msgInfo := <-channel
 		s := msgInfo.session
 		m := msgInfo.message
@@ -110,7 +139,6 @@ func handler(s *discordgo.Session, m *discordgo.MessageCreate) {
 	chatId := m.ChannelID
 	userName := m.Author.Username
 	log.Debug().Msg(outgoingMsg)
-
 	// Use is typing while the bot is thinking
 	typingInterval := time.Duration(rand.Intn(5)+5) * time.Second
 	// Create a channel to send the message information
@@ -124,16 +152,10 @@ func handler(s *discordgo.Session, m *discordgo.MessageCreate) {
 		typingTime: typingInterval,
 	}
 
+	// Send the message to chatgpt with the queue number
 	chatResp := openai.SendToChatGPT(chatId, userName, outgoingMsg)
-	if chatResp == nil {
-		// If chatResp is nil, we send to the channel the error message
-		error := "Error: unable to receive a response from openai"
 
-		// Send a message to the channel
-		s.ChannelMessageSend(m.ChannelID, error)
-		return
-	}
-
+	// Get the response from chatgpt with the queue number
 	for _, choice := range chatResp {
 		incomingMsg := choice.Message
 		log.Printf("role=%q, content=%q", incomingMsg.Role, incomingMsg.Content)
@@ -141,7 +163,34 @@ func handler(s *discordgo.Session, m *discordgo.MessageCreate) {
 		// Regex to remove the username: at the beginning of the message (also catch if user has a space in their name)
 		re := regexp.MustCompile(`^.*?: `)
 		incomingMsg.Content = re.ReplaceAllString(incomingMsg.Content, "")
-		// Send a message to the channel
-		s.ChannelMessageSend(m.ChannelID, incomingMsg.Content)
+
+		// Add to FIFO queue
+		fifoQueue.Enqueue(incomingMsg.Content)
+		fmt.Println(fifoQueue)
+
+		// Traitement des éléments dans l'ordre d'arrivée
+		for !fifoQueue.IsEmpty() {
+			// Get the first element of the queue
+			firsMsg := fifoQueue.Dequeue()
+			// Send a message to the channel with the response
+			_, err := s.ChannelMessageSend(m.ChannelID, firsMsg)
+			//  if error "code": 50035 then split the message in 2 and send it
+			if err != nil && err.(*discordgo.RESTError).Message.Code == 50035 {
+				// Split the message in 2
+				splitMessage := strings.Split(incomingMsg.Content, " ")
+				// Send the first part of the message
+				_, err := s.ChannelMessageSend(m.ChannelID, strings.Join(splitMessage[:len(splitMessage)/2], " "))
+				if err != nil {
+					log.Error().Msgf("unable to send message to discord: %v", err)
+				}
+				// Send the second part of the message
+				_, err = s.ChannelMessageSend(m.ChannelID, strings.Join(splitMessage[len(splitMessage)/2:], " "))
+				if err != nil {
+					log.Error().Msgf("unable to send message to discord: %v", err)
+				}
+			} else if err != nil {
+				log.Error().Msgf("unable to send message to discord: %v", err)
+			}
+		}
 	}
 }
