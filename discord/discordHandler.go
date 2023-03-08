@@ -61,27 +61,9 @@ func simulateTyping(channel chan messageInfo) {
 		s.ChannelTyping(m.ChannelID)
 		// Pause for a random amount of time
 		time.Sleep(typingInterval)
-		// Loop a random amount of times
-		for i := 0; i < rand.Intn(10)+1; i++ {
-			// Pause for a random amount of time
-			time.Sleep(time.Duration(rand.Intn(2)+1) * time.Second)
-			// Check if the message is still in the queue
-			if !fifoQueue.IsEmpty() {
-				// Get the first element from the queue
-				firstElement := fifoQueue.Dequeue()
-				// Check if the first element is the same as the current message
-				if firstElement == m.Content {
-					// Stop typing
-					s.ChannelTyping(m.ChannelID)
-					// Break the loop
-					break
-				} else {
-					// Add the first element back to the queue
-					fifoQueue.Enqueue(firstElement)
-				}
-			}
-			// Start with typing
-			s.ChannelTyping(m.ChannelID)
+		// Check if the queue is empty
+		if fifoQueue.IsEmpty() {
+			break
 		}
 	}
 }
